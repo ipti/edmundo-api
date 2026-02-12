@@ -7,30 +7,31 @@ import { verifyAdmin } from 'src/utils/verifyFunc';
 
 @Injectable()
 export class ModulesService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(user: JwtPayload, CreateModulesDto: CreateModulesDto) {
-
-
     try {
       const createdmodule = await this.prisma.module.create({
         data: {
           name: CreateModulesDto.name,
-          description: CreateModulesDto.description
+          description: CreateModulesDto.description,
         },
       });
 
       return createdmodule;
     } catch (err) {
-
-      console.log(err)
+      console.log(err);
       throw new HttpException(err, HttpStatus.BAD_REQUEST);
     }
   }
 
   async findAll() {
     try {
-      const modules = await this.prisma.module.findMany();
+      const modules = await this.prisma.module.findMany({
+        orderBy: {
+          order: 'asc',
+        },
+      });
       return modules;
     } catch (err) {
       throw new HttpException(err, HttpStatus.BAD_REQUEST);
@@ -59,7 +60,6 @@ export class ModulesService {
     UpdateModulesDto: UpdateModulesDto,
   ) {
     try {
-
       this.findOne(id);
 
       const updatedreaplication = await this.prisma.module.update({
@@ -74,14 +74,13 @@ export class ModulesService {
   }
   async remove(user: JwtPayload, id: string) {
     try {
-
       await this.findOne(id);
 
       const module_classroom = await this.prisma.classroom_module.findMany({
         where: {
-          module_fk: +id
-        }
-      })
+          module_fk: +id,
+        },
+      });
 
       if (module_classroom.length > 0) {
         throw new HttpException(
@@ -90,12 +89,11 @@ export class ModulesService {
         );
       }
 
-
       const classes = await this.prisma.classes.findMany({
         where: {
-          moduleId: +id
-        }
-      })
+          moduleId: +id,
+        },
+      });
 
       if (classes.length > 0) {
         throw new HttpException(
@@ -108,8 +106,8 @@ export class ModulesService {
         where: { id: +id },
         include: {
           classroom_module: true,
-          classes: true
-        }
+          classes: true,
+        },
       });
 
       return { message: 'reaplication deleted successfully' };
