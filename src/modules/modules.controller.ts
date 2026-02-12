@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Req,
@@ -21,13 +22,14 @@ import { ModulesResponse } from './doc/modules.response';
 import { CreateModulesDto } from './dto/create-modules.dto';
 import { UpdateModulesDto } from './dto/update-modules.dto';
 import { ModulesService } from './shared/modules.service';
+import { ReorderModulesDto } from './dto/reorder-modules.dto';
 
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('modules')
 @ApiTags('Modules')
 export class ModulesController {
-  constructor(private ModulesService: ModulesService) { }
+  constructor(private ModulesService: ModulesService) {}
 
   @Post()
   @ApiCreatedResponse({ type: ModulesResponse })
@@ -58,5 +60,10 @@ export class ModulesController {
   @Delete(':id')
   async delete(@Req() req: Request, @Param('id') id: string) {
     return this.ModulesService.remove(req.user, id);
+  }
+
+  @Patch('reorder')
+  async reorder(@Req() req: Request, @Body() body: ReorderModulesDto) {
+    return this.ModulesService.reorder(req.user, body.newOrder);
   }
 }

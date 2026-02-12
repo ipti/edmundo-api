@@ -9,8 +9,8 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtStrategy: JwtStrategy,
-    private reapplication: ReapplicationnBffService
-  ) { }
+    private reapplication: ReapplicationnBffService,
+  ) {}
 
   async validateUser(userUsername: string, userPassword: string) {
     const user = await this.usersService.findOneByEmail(userUsername);
@@ -18,7 +18,6 @@ export class AuthService {
     if (!user) {
       throw new HttpException('Usuário não encontrado', HttpStatus.NOT_FOUND);
     }
-
 
     if (
       user &&
@@ -43,7 +42,7 @@ export class AuthService {
     return {
       access_token: this.jwtStrategy.generateSignToken(payload),
       userRegistered,
-      reapplication
+      reapplication,
     };
   }
 }

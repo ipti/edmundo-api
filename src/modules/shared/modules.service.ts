@@ -3,8 +3,9 @@ import { JwtPayload } from 'src/utils/jwt.interface';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateModulesDto } from '../dto/create-modules.dto';
 import { UpdateModulesDto } from '../dto/update-modules.dto';
-import { verifyAdmin } from 'src/utils/verifyFunc';
+//import { verifyAdmin } from 'src/utils/verifyFunc';
 
+type ReorderType = { id: number; order: number }[];
 @Injectable()
 export class ModulesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -114,5 +115,25 @@ export class ModulesService {
     } catch (err) {
       throw new HttpException(err, HttpStatus.BAD_REQUEST);
     }
+  }
+
+  async reorder(user: JwtPayload, data: ReorderType) {
+    if (!data || data.length === 0) {
+      throw new HttpException(
+        'Invalid reorder payload',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    await this.prisma.$transaction(
+      data.map((item) =>
+        this.prisma.module.update({
+          where: { id: item.id },
+          data: { order: item.order },
+        }),
+      ),
+    );
+
+    return { message: 'Reordered successfully' };
   }
 }
