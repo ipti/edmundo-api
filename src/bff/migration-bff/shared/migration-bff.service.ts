@@ -29,7 +29,7 @@ export class MigrationBffService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly userServices: UsersService,
-  ) {}
+  ) { }
 
   async migrationMeuBen(MigrationDto: MigrationDto) {
     try {
@@ -73,8 +73,8 @@ export class MigrationBffService {
         await axios
           .post(
             process.env.BACKEND_URL +
-              '/migration-bff?token=' +
-              process.env.TOKEN,
+            '/migration-bff?token=' +
+            process.env.TOKEN,
             {
               project: MigrationDto.project,
               year: MigrationDto.year,
@@ -100,50 +100,94 @@ export class MigrationBffService {
     user: JwtPayload,
   ) {
     try {
-      const transactionResult = this.prisma.$transaction(async (tx) => {
-        const classroomOne = await this.findClassroomOne(
-          MigrationDto.idClassroom.toString(),
+      const classroomOneMeuben = await this.findClassroomOne(
+        MigrationDto.idClassroom.toString(),
+      );
+
+      if (!classroomOneMeuben) {
+        throw new HttpException(
+          'Turma não encontrada!',
+          HttpStatus.BAD_REQUEST,
         );
-        const classroom = await tx.classroom.create({
-          data: {
-            name: classroomOne.name,
-            owner_user_fk: user.id,
-            reapplication: { connect: { id: MigrationDto.idReaplication } },
+      }
+      const transactionResult = this.prisma.$transaction(async (tx) => {
+        const classroomCoded = await tx.classroom.findFirst({
+          where: {
+            idClassroomMeuBen: classroomOneMeuben.id,
           },
         });
 
-        function convertData(date: Date) {
-          const day = String(date.getDate()).padStart(2, '0');
-          const month = String(date.getMonth() + 1).padStart(2, '0'); // Janeiro é 0
-          const year = date.getFullYear();
+        var classroom
 
-          return `${day}${month}${year}`;
+        if (classroomCoded) {
+          classroom = await tx.classroom.update({
+            where: {
+              id: classroomCoded.id,
+            },
+            data: {
+              name: classroomOneMeuben.name
+            },
+          });
+        } else {
+          classroom = await tx.classroom.create({
+            data: {
+              name: classroomOneMeuben.name,
+              owner_user_fk: user.id,
+              idClassroomMeuBen: classroomOneMeuben.id,
+              reapplication: { connect: { id: MigrationDto.idReaplication } },
+            },
+          });
+
         }
 
-        function parseDate(dateString) {
-          const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
-          const match = dateString.match(regex);
 
-          if (!match) return new Date(dateString); // Retorna null se o formato estiver errado
+        function normalizeBirthday(rawBirthday: string | Date) {
+          const birthdayValue =
+            rawBirthday instanceof Date
+              ? rawBirthday.toISOString().slice(0, 10)
+              : String(rawBirthday ?? '').trim();
 
-          let [, day, month, year] = match;
-          day = parseInt(day, 10);
-          month = parseInt(month, 10);
-          year = parseInt(year, 10);
+          const brFormat = birthdayValue.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+          const isoFormat = birthdayValue.match(/^(\d{4})-(\d{2})-(\d{2})/);
 
-          // Ajustar mês inválido (se for maior que 12, coloca no máximo 12)
+          let day: number;
+          let month: number;
+          let year: number;
+
+          if (brFormat) {
+            day = parseInt(brFormat[1], 10);
+            month = parseInt(brFormat[2], 10);
+            year = parseInt(brFormat[3], 10);
+          } else if (isoFormat) {
+            year = parseInt(isoFormat[1], 10);
+            month = parseInt(isoFormat[2], 10);
+            day = parseInt(isoFormat[3], 10);
+          } else {
+            const fallback = new Date(birthdayValue);
+            if (Number.isNaN(fallback.getTime())) {
+              throw new HttpException(
+                `Data de nascimento inválida: ${birthdayValue}`,
+                HttpStatus.BAD_REQUEST,
+              );
+            }
+            year = fallback.getUTCFullYear();
+            month = fallback.getUTCMonth() + 1;
+            day = fallback.getUTCDate();
+          }
+
+          if (month < 1) month = 1;
           if (month > 12) month = 12;
-
-          // Ajustar o dia para que seja válido no mês ajustado
-          const lastDayOfMonth = new Date(year, month, 0).getDate(); // Último dia do mês
-          if (day > lastDayOfMonth) day = lastDayOfMonth;
-
-          // Garantir que o ano esteja dentro de um intervalo aceitável (exemplo: 1900-2100)
           if (year < 1900) year = 1900;
           if (year > 2100) year = 2100;
 
-          // Criar e retornar a nova data
-          return new Date(year, month - 1, day); // Retorna null se o formato não for válido
+          const lastDayOfMonth = new Date(year, month, 0).getDate();
+          if (day < 1) day = 1;
+          if (day > lastDayOfMonth) day = lastDayOfMonth;
+
+          return {
+            birthdayDate: new Date(year, month - 1, day),
+            passwordSeed: `${String(day).padStart(2, '0')}${String(month).padStart(2, '0')}${year}`,
+          };
         }
 
         function getFirstName(fullName) {
@@ -155,82 +199,128 @@ export class MigrationBffService {
             .replace(/[\u0300-\u036f]/g, '');
         }
 
-        for (const register_classroom of classroomOne.register_classroom) {
-          var registration = register_classroom.registration;
-          const regi = await tx.registration.findFirst({
-            where: {
-              cpf: {
-                not: '',
-                equals: registration.cpf,
+        for (const register_classroom of classroomOneMeuben.register_classroom) {
+          if (register_classroom) {
+
+
+            var registration = register_classroom.registration;
+            const regi = await tx.registration.findFirst({
+              where: {
+                OR: [
+                  {
+                    idRegistrationMeuBen: registration.id,
+                  },
+                  {
+                    cpf: {
+                      not: '',
+                      equals: registration.cpf,
+                    },
+                  },
+                ],
               },
-            },
-            include: {
-              user: true,
-            },
-          });
-
-          if (!regi) {
-            const hashedPassword = await this.userServices.hashPassword(
-              convertData(parseDate(registration.birthday)).toString(),
-            );
-
-            const user = await tx.users.create({
-              data: {
-                name: registration.name,
-                email:
-                  getFirstName(registration.name) +
-                  '#' +
-                  convertData(parseDate(registration.birthday)).toString(),
-                password: hashedPassword,
-                role: 'STUDENT',
+              include: {
+                user: true,
               },
             });
 
-            await tx.registration.create({
-              data: {
-                birthday: parseDate(registration.birthday),
-                color_race: registration.color_race,
-                deficiency: registration.deficiency,
-                sex: registration.sex,
-                zone: registration.zone,
-                cpf: registration.cpf,
-                responsable_name: registration.responsable_name,
-                responsable_telephone: registration.responsable_telephone,
-                kinship: registration.kinship,
-                responsable_cpf: registration.responsable_cpf,
-                user: { connect: { id: user.id } },
-              },
-            });
+            const normalizedBirthday = normalizeBirthday(registration.birthday);
 
-            await tx.user_classroom.create({
-              data: {
-                classroom: {
-                  connect: {
+            if (!regi) {
+              const hashedPassword = await this.userServices.hashPassword(
+                normalizedBirthday.passwordSeed,
+              );
+
+              const user = await tx.users.create({
+                data: {
+                  name: registration.name,
+                  email: registration.cpf ? registration.cpf :
+                    getFirstName(registration.name) +
+                    '#' +
+                    normalizedBirthday.passwordSeed,
+                  password: hashedPassword,
+                  role: 'STUDENT',
+                },
+              });
+
+              await tx.registration.create({
+                data: {
+                  birthday: normalizedBirthday.birthdayDate,
+                  color_race: registration.color_race,
+                  deficiency: registration.deficiency,
+                  sex: registration.sex,
+                  zone: registration.zone,
+                  cpf: registration.cpf,
+                  responsable_name: registration.responsable_name,
+                  responsable_telephone: registration.responsable_telephone,
+                  kinship: registration.kinship,
+                  responsable_cpf: registration.responsable_cpf,
+                  idRegistrationMeuBen: registration.id,
+                  user: { connect: { id: user.id } },
+                },
+              });
+
+              await tx.user_classroom.create({
+                data: {
+                  classroom: {
+                    connect: {
+                      id: classroom.id,
+                    },
+                  },
+                  users: {
+                    connect: {
+                      id: user.id,
+                    },
+                  },
+                },
+              });
+            } else {
+
+              await tx.registration.update({
+                where: {
+                  id: regi.id,
+                },
+                data: {
+                  birthday: normalizedBirthday.birthdayDate,
+                  color_race: registration.color_race,
+                  deficiency: registration.deficiency,
+                  sex: registration.sex,
+                  zone: registration.zone,
+                  cpf: registration.cpf,
+                  responsable_name: registration.responsable_name,
+                  responsable_telephone: registration.responsable_telephone,
+                  kinship: registration.kinship,
+                  responsable_cpf: registration.responsable_cpf,
+                  idRegistrationMeuBen: registration.id,
+                },
+              });
+              const userClassroom = await tx.user_classroom.findFirst({
+                where: {
+                  classroom: {
                     id: classroom.id,
                   },
-                },
-                users: {
-                  connect: {
-                    id: user.id,
-                  },
-                },
-              },
-            });
-          } else {
-            await tx.user_classroom.create({
-              data: {
-                classroom: {
-                  connect: {
-                    id: classroom.id,
-                  },
-                },
-                users: {
-                  connect: {
+                  users: {
                     id: regi.user.id,
                   },
                 },
-              },
-            });
+              });
+
+              if (!userClassroom) {
+                await tx.user_classroom.create({
+                  data: {
+                    classroom: {
+                      connect: {
+                        id: classroom.id,
+                      },
+                    },
+                    users: {
+                      connect: {
+                        id: regi.user.id,
+                      },
+                    },
+                  },
+                });
+              }
+            }
           }
         }
 
@@ -258,10 +348,10 @@ export class MigrationBffService {
     try {
       const classroomList = await axios.get(
         process.env.BACKEND_URL +
-          '/migration-bff/classroom-list?token=' +
-          process.env.TOKEN +
-          '&idProject=' +
-          id,
+        '/migration-bff/classroom-list?token=' +
+        process.env.TOKEN +
+        '&idProject=' +
+        id,
       );
       return classroomList.data;
     } catch (err) {
@@ -273,10 +363,10 @@ export class MigrationBffService {
     try {
       const classroomOne = await axios.get(
         process.env.BACKEND_URL +
-          '/migration-bff/classroom-one?token=' +
-          process.env.TOKEN +
-          '&idClassroom=' +
-          id,
+        '/migration-bff/classroom-one?token=' +
+        process.env.TOKEN +
+        '&idClassroom=' +
+        id,
       );
       return classroomOne.data;
     } catch (err) {

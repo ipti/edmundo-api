@@ -30,6 +30,7 @@ model users {
 
 model registration {
   id                     Int      @id @default(autoincrement())
+  idRegistrationMeuBen   Int?
   avatar_url             String?
   description            String?
   birthday               DateTime
@@ -48,6 +49,8 @@ model registration {
   updatedAt              DateTime @updatedAt
   user_fk                Int
   user                   users    @relation(fields: [user_fk], references: [id])
+
+  @@index([idRegistrationMeuBen])
 }
 
 model user_reapplication {
@@ -73,6 +76,7 @@ model reapplication {
 model classroom {
   id                   Int                    @id @default(autoincrement())
   name                 String
+  idClassroomMeuBen    Int?                   @unique
   owner_user_fk        Int
   reapplication_fk     Int
   isOpen               Boolean                @default(false)

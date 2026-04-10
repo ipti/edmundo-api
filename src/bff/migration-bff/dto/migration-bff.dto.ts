@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Kinship } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsArray, IsBoolean, IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsDate, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class MigrationDto {
   @ApiProperty({ example: 1, description: 'ID do projeto' })
@@ -101,4 +101,21 @@ export class MigrationMeubenToCodedDto {
   @IsNotEmpty()
   @IsNumber()
   idReaplication: number;
+}
+
+export class SyncClassroomDto {
+  @ApiProperty({ example: 1, description: 'ID da turma no Coded' })
+  @IsNotEmpty()
+  @IsNumber()
+  idClassroomCoded: number;
+
+  @ApiProperty({ example: 1, description: 'ID da turma no MeuBen' })
+  @IsNotEmpty()
+  @IsNumber()
+  idClassroomMeuBen: number;
+
+  @ApiProperty({ example: 1, description: 'ID da reaplicação no Coded', required: false })
+  @IsOptional()
+  @IsNumber()
+  idReaplication?: number;
 }

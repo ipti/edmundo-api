@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ClassroomBffService } from './service/classroom-bff.service';
@@ -50,5 +50,13 @@ export class ClassroomBffController {
     @Query('idClassroom') idClassroom: number,
   ) {
     return this.ClassroomBffService.jointheClassroom(idUser, idClassroom);
+  }
+
+  @Put('remove-from-classroom')
+  async removeMemberFromClassroom(
+    @Query('idUser', ParseIntPipe) idUser: number,
+    @Query('idClassroom', ParseIntPipe) idClassroom: number,
+  ) {
+    return this.ClassroomBffService.removeMemberFromClassroom(idUser, idClassroom);
   }
 }

@@ -4,7 +4,7 @@ import { verifyAdminBoolean } from 'src/utils/verifyFunc';
 
 @Injectable()
 export class ClassroomBffService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(private readonly prismaService: PrismaService) { }
 
   async findClassroomUser(idUser: number) {
     try {
@@ -120,16 +120,16 @@ export class ClassroomBffService {
 
       const whereCondition = idReapplication
         ? {
-            reapplication_fk: idReapplication,
-            user: {
-              some: { usersId: +idUser },
-            },
-          }
+          reapplication_fk: idReapplication,
+          user: {
+            some: { usersId: +idUser },
+          },
+        }
         : {
-            user: {
-              some: { usersId: +idUser },
-            },
-          };
+          user: {
+            some: { usersId: +idUser },
+          },
+        };
 
       const whereConditionAdmin = {
         reapplication_fk: idReapplication,
@@ -188,6 +188,62 @@ export class ClassroomBffService {
     }
   }
 
+  async removeMemberFromClassroom(idUser: number, idClassroom: number) {
+    try {
+      const classroom = await this.prismaService.classroom.findUnique({
+        where: { id: idClassroom },
+        select: { id: true, owner_user_fk: true },
+      });
+
+      if (!classroom) {
+        throw new HttpException('Turma não encontrada', HttpStatus.NOT_FOUND);
+      }
+
+      if (classroom.owner_user_fk === idUser) {
+        throw new HttpException(
+          'Não é permitido remover o dono da turma.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const userClassroom = await this.prismaService.user_classroom.findFirst({
+        where: {
+          classroomId: idClassroom,
+          usersId: idUser,
+        },
+        select: { id: true },
+      });
+
+      if (!userClassroom) {
+        throw new HttpException(
+          'Usuário não está matriculado nesta turma.',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      // Keep related historical records linked to user_classroom and only detach from current classroom.
+      const result = await this.prismaService.user_classroom.updateMany({
+        where: {
+          classroomId: idClassroom,
+          usersId: idUser,
+        },
+        data: {
+          classroomId: null,
+        },
+      });
+
+      return {
+        message: 'Usuário removido da turma com sucesso!',
+        detachedCount: result.count,
+      };
+    } catch (err) {
+      if (err instanceof HttpException) {
+        throw err;
+      }
+      throw new HttpException(err, HttpStatus.BAD_REQUEST);
+    }
+  }
+
   async findOne(id: string) {
     try {
       const classroom = await this.prismaService.classroom.findUnique({
@@ -227,6 +283,7 @@ export class ClassroomBffService {
                 select: {
                   name: true,
                   role: true,
+                  email: true,
                   registration: {
                     select: {
                       avatar_url: true,
