@@ -158,6 +158,26 @@ export class UsersService {
     }
   }
 
+  async resetPassword(id: number, newPassword: string) {
+    try {
+      const user = await this.findOne(id);
+      if (!user) {
+        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+      }
+
+      const hashedPassword = await this.hashPassword(newPassword);
+
+      await this.prisma.users.update({
+        where: { id },
+        data: { password: hashedPassword },
+      });
+
+      return { message: 'Senha alterada com sucesso' };
+    } catch (err) {
+      throw new HttpException(err, HttpStatus.BAD_REQUEST);
+    }
+  }
+
   async hashPassword(password: string): Promise<string> {
     const saltRounds = 10;
     return bcrypt.hash(password, saltRounds);

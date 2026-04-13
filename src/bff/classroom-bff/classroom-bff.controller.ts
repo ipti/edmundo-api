@@ -33,6 +33,12 @@ export class ClassroomBffController {
     return this.ClassroomBffService.findClassroomActivitiesUser(+id);
   }
 
+  @Get('teachers-by-reapplication')
+  async getTeachersByReapplication(
+    @Query('idReapplication', ParseIntPipe) idReapplication: number,
+  ) {
+    return this.ClassroomBffService.findTeachersByReapplication(idReapplication);
+  }
 
   @Get(':id')
   async getById(@Param('id') id: string) {

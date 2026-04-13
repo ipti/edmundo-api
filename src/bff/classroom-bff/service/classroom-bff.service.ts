@@ -108,6 +108,44 @@ export class ClassroomBffService {
     }
   }
 
+  async findTeachersByReapplication(idReapplication: number) {
+    try {
+      const teachersByReapplication =
+        await this.prismaService.user_reapplication.findMany({
+          where: {
+            reapplication_fk: idReapplication,
+            users: {
+              role: 'TEACHER',
+              active: true,
+            },
+          },
+          select: {
+            users: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                active: true,
+              },
+            },
+          },
+        });
+
+      const uniqueTeachers = Array.from(
+        new Map(
+          teachersByReapplication
+            .map((item) => item.users)
+            .map((teacher) => [teacher.id, teacher]),
+        ).values(),
+      );
+
+      return uniqueTeachers;
+    } catch (err) {
+      throw new HttpException(err.message || err, HttpStatus.BAD_REQUEST);
+    }
+  }
+
   async findClassroomReapplication(idUser: number, idReapplication?: number) {
     try {
       // Condição para verificar se idReapplication foi fornecido

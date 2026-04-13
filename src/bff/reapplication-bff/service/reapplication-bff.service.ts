@@ -19,12 +19,12 @@ export class ReapplicationnBffService {
       const whereCondition =
         isAdmin[0].role === 'ADMIN'
           ? {}
-          : 
+          :
           {
-              // user_reapplication: {
-              //   some: { user_fk: user.id },
-              // },
-        };
+            user_reapplication: {
+              some: { user_fk: user.id },
+            },
+          };
 
       const reaplication = await this.prismaService.reapplication.findMany({
         where: whereCondition,

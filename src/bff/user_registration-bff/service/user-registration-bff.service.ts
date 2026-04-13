@@ -183,6 +183,118 @@ export class UserRegistrationBffService {
     }
   }
 
+  async addUserReapplication(idUser: number, idReapplication: number, reqUserId: number) {
+    const reqUser = await this.prismaService.users.findUnique({
+      where: { id: reqUserId },
+    });
+
+    if (reqUser.role !== 'ADMIN') {
+      throw new HttpException(
+        'Usuário não tem permissão',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const user = await this.prismaService.users.findUnique({
+      where: { id: idUser },
+    });
+
+    if (!user) {
+      throw new HttpException('Usuário não encontrado', HttpStatus.NOT_FOUND);
+    }
+
+    if (user.role === 'STUDENT') {
+      throw new HttpException(
+        'Alunos não podem ser vinculados a reaplicações',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const reapplication = await this.prismaService.reapplication.findUnique({
+      where: { id: idReapplication },
+    });
+
+    if (!reapplication) {
+      throw new HttpException('Reaplicação não encontrada', HttpStatus.NOT_FOUND);
+    }
+
+    const existing = await this.prismaService.user_reapplication.findFirst({
+      where: {
+        user_fk: idUser,
+        reapplication_fk: idReapplication,
+      },
+    });
+
+    if (existing) {
+      throw new HttpException(
+        'Usuário já está vinculado a esta reaplicação',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      await this.prismaService.user_reapplication.create({
+        data: {
+          users: { connect: { id: idUser } },
+          reapplication: { connect: { id: idReapplication } },
+        },
+      });
+
+      return { message: 'Reaplicação vinculada com sucesso!' };
+    } catch (err) {
+      throw new HttpException(err, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  async removeUserReapplication(
+    idUser: number,
+    idReapplication: number,
+    reqUserId: number,
+  ) {
+    const reqUser = await this.prismaService.users.findUnique({
+      where: { id: reqUserId },
+    });
+
+    if (reqUser.role !== 'ADMIN') {
+      throw new HttpException(
+        'Usuário não tem permissão',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const user = await this.prismaService.users.findUnique({
+      where: { id: idUser },
+    });
+
+    if (!user) {
+      throw new HttpException('Usuário não encontrado', HttpStatus.NOT_FOUND);
+    }
+
+    const existing = await this.prismaService.user_reapplication.findFirst({
+      where: {
+        user_fk: idUser,
+        reapplication_fk: idReapplication,
+      },
+    });
+
+    if (!existing) {
+      throw new HttpException(
+        'Vínculo de reaplicação não encontrado para este usuário',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    try {
+      await this.prismaService.user_reapplication.delete({
+        where: { id: existing.id },
+      });
+
+      return { message: 'Reaplicação removida do usuário com sucesso!' };
+    } catch (err) {
+      throw new HttpException(err, HttpStatus.BAD_REQUEST);
+    }
+  }
+
   async findOne(id: number) {
     const user = await this.prismaService.users.findUnique({
       where: { id: id },
@@ -203,6 +315,16 @@ export class UserRegistrationBffService {
           },
         },
         role: true,
+        user_reapplication: {
+          include: {
+            reapplication: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
         registration: {
           where: { user_fk: id },
         },
